@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Activity, ShoppingCart, User, Search, Heart, ChevronDown, ChevronLeft, ChevronRight,
@@ -36,6 +36,27 @@ const variant: 'a-no-chat' | 'a-chat' | 'b-no-chat' | 'b-chat' = 'b-chat';
 const arch: 'A' | 'B' = variant.startsWith('b') ? 'B' : 'A';
 const chatEnabled = variant.includes('chat') && !variant.includes('no-chat');
 
+function getRouteStateFromLocation() {
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+  if (!path || path === 'catalog' || path === 'index.html') {
+    return { page: 'catalog' as const, id: 'A1' };
+  }
+  if (path.startsWith('product/')) {
+    const rawId = path.split('product/')[1] || 'a1';
+    return { page: 'detail' as const, id: rawId.toUpperCase() };
+  }
+  if (path === 'cart') {
+    return { page: 'cart' as const, id: 'A1' };
+  }
+  if (path === 'checkout') {
+    return { page: 'checkout' as const, id: 'A1' };
+  }
+  if (path === 'done') {
+    return { page: 'done' as const, id: 'A1' };
+  }
+  return { page: 'catalog' as const, id: 'A1' };
+}
+
 function Watch({ p, customColor, large = false, small = false }: { p: Product; customColor?: string; large?: boolean; small?: boolean }) {
   const strap = customColor || p.color;
   return (
@@ -65,8 +86,7 @@ function Watch({ p, customColor, large = false, small = false }: { p: Product; c
 }
 
 function App() {
-  const [page, setPage] = useState<'catalog' | 'detail' | 'cart' | 'checkout' | 'done'>('catalog');
-  const [selectedId, setSelectedId] = useState('A1');
+  const [route, setRoute] = useState(getRouteStateFromLocation());
   const [cart, setCart] = useState<{ id: string; qty: number; color?: string } | null>(null);
   const [activeColor, setActiveColor] = useState<string | undefined>(undefined);
   const [liked, setLiked] = useState(false);
@@ -87,18 +107,30 @@ function App() {
   // Chat state
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<{ who: 'bot' | 'user'; text: string }[]>([
-    { who: 'bot', text: 'سلام! درباره مشخصات ساعت‌های هوشمند چه سؤالی دارید؟' },
+    { who: 'bot', text: 'سلام! درباره مشخصات ساعت‌های هوشمند دیجی‌سلامت چه سؤالی دارید؟' },
   ]);
   const [question, setQuestion] = useState('');
   const [chatBusy, setChatBusy] = useState(false);
 
-  const product = products.find((p) => p.id === selectedId) || products[0];
-  const cartProduct = cart ? products.find((p) => p.id === cart.id) || products[0] : null;
+  // Sync with browser Back / Forward buttons
+  useEffect(() => {
+    const onPopState = () => {
+      setRoute(getRouteStateFromLocation());
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
-  function go(p: typeof page) {
-    setPage(p);
+  function navigate(toPath: string) {
+    if (window.location.pathname !== toPath) {
+      window.history.pushState({}, '', toPath);
+    }
+    setRoute(getRouteStateFromLocation());
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
+
+  const product = products.find((p) => p.id === route.id) || products[0];
+  const cartProduct = cart ? products.find((p) => p.id === cart.id) || products[0] : null;
 
   function addToCart(p: Product, customColor?: string) {
     setCart((prev) =>
@@ -106,7 +138,7 @@ function App() {
         ? { id: p.id, qty: prev.qty + 1, color: customColor || prev.color || p.color }
         : { id: p.id, qty: 1, color: customColor || p.color }
     );
-    go('cart');
+    navigate('/cart');
   }
 
   async function handleChatReply() {
@@ -159,18 +191,18 @@ function App() {
         <div className="header-inner">
           {/* Logo & Navigation */}
           <div className="nav-and-brand">
-            <button className="brand-logo" onClick={() => go('catalog')}>
+            <button className="brand-logo" onClick={() => navigate('/')}>
               <Activity className="brand-pulse-icon" size={26} />
               <span className="brand-name">دیجی‌سلامت</span>
             </button>
             <nav className="main-nav">
-              <button className="nav-item" onClick={() => go('catalog')}>
+              <button className="nav-item" onClick={() => navigate('/')}>
                 خانه
               </button>
-              <button className="nav-item" onClick={() => go('catalog')}>
+              <button className="nav-item" onClick={() => navigate('/')}>
                 دسته‌بندی‌ها
               </button>
-              <button className="nav-item active" onClick={() => go('catalog')}>
+              <button className="nav-item active" onClick={() => navigate('/')}>
                 ساعت هوشمند
               </button>
             </nav>
@@ -185,7 +217,7 @@ function App() {
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
-                if (page !== 'catalog') go('catalog');
+                if (route.page !== 'catalog') navigate('/');
               }}
             />
           </div>
@@ -195,7 +227,7 @@ function App() {
             <button className="icon-btn" aria-label="پروفایل کاربر">
               <User size={22} />
             </button>
-            <button className="icon-btn cart-btn" onClick={() => go('cart')} aria-label="سبد خرید">
+            <button className="icon-btn cart-btn" onClick={() => navigate('/cart')} aria-label="سبد خرید">
               <ShoppingCart size={22} />
               {cart && cart.qty > 0 && <span className="cart-badge">{format(cart.qty)}</span>}
             </button>
@@ -206,7 +238,7 @@ function App() {
       {/* Main Content Area */}
       <main className="main-container">
         {/* ================= PAGE 1: CATALOG ================= */}
-        {page === 'catalog' && (
+        {route.page === 'catalog' && (
           <div className="catalog-page">
             <div className="page-heading">
               <h1 className="heading-title">ساعت‌های هوشمند</h1>
@@ -226,28 +258,27 @@ function App() {
               {/* Product Grid */}
               <div className="products-grid">
                 {filteredProducts.map((p) => (
-                  <div className="product-card" key={p.id}>
-                    <button
-                      className="card-media"
-                      onClick={() => {
-                        setSelectedId(p.id);
+                  <div
+                    className="product-card clickable-card"
+                    key={p.id}
+                    onClick={() => {
+                      setActiveColor(undefined);
+                      navigate('/product/' + p.id);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
                         setActiveColor(undefined);
-                        go('detail');
-                      }}
-                    >
+                        navigate('/product/' + p.id);
+                      }
+                    }}
+                  >
+                    <div className="card-media">
                       <Watch p={p} />
-                    </button>
+                    </div>
                     <div className="card-info">
-                      <h3
-                        className="product-title"
-                        onClick={() => {
-                          setSelectedId(p.id);
-                          setActiveColor(undefined);
-                          go('detail');
-                        }}
-                      >
-                        {p.name}
-                      </h3>
+                      <h3 className="product-title">{p.name}</h3>
                       <div className="product-price">
                         <strong>{format(p.price)}</strong> <small>تومان</small>
                       </div>
@@ -263,15 +294,6 @@ function App() {
                           </span>
                         </div>
                       )}
-
-                      {/* Button: Solid Purple for A, Outline Blue for B */}
-                      <button
-                        className={`add-btn ${arch === 'A' ? 'solid-btn' : 'outline-btn'}`}
-                        onClick={() => addToCart(p)}
-                      >
-                        <ShoppingCart size={17} />
-                        <span>افزودن به سبد خرید</span>
-                      </button>
                     </div>
                   </div>
                 ))}
@@ -360,16 +382,16 @@ function App() {
         )}
 
         {/* ================= PAGE 2: DETAIL ================= */}
-        {page === 'detail' && (
+        {route.page === 'detail' && (
           <div className="detail-page">
             {/* Design A Breadcrumb */}
             {arch === 'A' && (
               <nav className="breadcrumb">
-                <button onClick={() => go('catalog')}>خانه</button>
+                <button onClick={() => navigate('/')}>خانه</button>
                 <ChevronLeft size={14} />
-                <button onClick={() => go('catalog')}>دسته‌بندی‌ها</button>
+                <button onClick={() => navigate('/')}>دسته‌بندی‌ها</button>
                 <ChevronLeft size={14} />
-                <button onClick={() => go('catalog')}>ساعت هوشمند</button>
+                <button onClick={() => navigate('/')}>ساعت هوشمند</button>
                 <ChevronLeft size={14} />
                 <span className="current">{product.name}</span>
               </nav>
@@ -464,7 +486,7 @@ function App() {
                   </div>
                 </div>
 
-                {/* Action Buttons */}
+                {/* Action Buttons: Add to Cart ONLY on detail page */}
                 <div className="action-buttons-row">
                   <button
                     className={`main-add-btn ${arch === 'A' ? 'theme-purple' : 'theme-blue'}`}
@@ -576,12 +598,12 @@ function App() {
         )}
 
         {/* ================= PAGE 3: CART ================= */}
-        {page === 'cart' && (
+        {route.page === 'cart' && (
           <div className="cart-page">
             <div className="cart-header">
               <h2>سبد خرید</h2>
               {arch === 'A' && (
-                <button className="continue-shopping-link" onClick={() => go('catalog')}>
+                <button className="continue-shopping-link" onClick={() => navigate('/')}>
                   ادامه خرید ←
                 </button>
               )}
@@ -626,10 +648,7 @@ function App() {
                     <div className="related-grid">
                       <button
                         className="related-item"
-                        onClick={() => {
-                          setSelectedId('B2');
-                          go('detail');
-                        }}
+                        onClick={() => navigate('/product/B2')}
                       >
                         <Watch p={products[1]} small />
                         <div className="related-info">
@@ -639,10 +658,7 @@ function App() {
                       </button>
                       <button
                         className="related-item"
-                        onClick={() => {
-                          setSelectedId('E5');
-                          go('detail');
-                        }}
+                        onClick={() => navigate('/product/E5')}
                       >
                         <Watch p={products[4]} small />
                         <div className="related-info">
@@ -665,7 +681,7 @@ function App() {
                 {/* Proceed Button */}
                 <button
                   className={`checkout-cta-btn ${arch === 'A' ? 'theme-purple' : 'theme-blue'}`}
-                  onClick={() => go('checkout')}
+                  onClick={() => navigate('/checkout')}
                 >
                   <span>ادامه و ثبت سفارش</span>
                   <ChevronLeft size={18} />
@@ -675,7 +691,7 @@ function App() {
               <div className="cart-empty-box">
                 <ShoppingCart size={48} className="empty-icon" />
                 <h3>سبد خرید شما خالی است</h3>
-                <button className="return-store-btn" onClick={() => go('catalog')}>
+                <button className="return-store-btn" onClick={() => navigate('/')}>
                   مشاهده محصولات
                 </button>
               </div>
@@ -684,7 +700,7 @@ function App() {
         )}
 
         {/* ================= PAGE 4: CHECKOUT ================= */}
-        {page === 'checkout' && (
+        {route.page === 'checkout' && (
           <div className="checkout-page">
             {/* Step Wizard Progress */}
             <div className="wizard-progress">
@@ -710,7 +726,7 @@ function App() {
                 className="checkout-form"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (cart) go('done');
+                  if (cart) navigate('/done');
                 }}
               >
                 <div className="form-group">
@@ -800,7 +816,7 @@ function App() {
         )}
 
         {/* ================= PAGE 5: DONE ================= */}
-        {page === 'done' && (
+        {route.page === 'done' && (
           <div className="done-page">
             <CheckCircle2 size={68} className="done-icon" />
             <h2>سفارش آزمایشی با موفقیت ثبت شد</h2>
@@ -812,7 +828,7 @@ function App() {
               className="return-btn"
               onClick={() => {
                 setCart(null);
-                go('catalog');
+                navigate('/');
               }}
             >
               بازگشت به فروشگاه

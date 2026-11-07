@@ -1758,3 +1758,15 @@ input {
     grid-template-columns: 1fr;
   }
 }
+
+.clickable-card {
+  cursor: pointer;
+  user-select: none;
+}
+.clickable-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+}
+.clickable-card:hover .product-title {
+  color: var(--primary);
+}
